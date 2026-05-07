@@ -1,0 +1,105 @@
+module:
+  name: TopModule
+  description: "Serial byte receiver FSM with start/stop bit detection and error recovery"
+
+interface:
+  inputs:
+    - name: clk
+      width: 1
+      type: clock
+      edge: posedge
+    - name: reset
+      width: 1
+      type: sync_reset
+      active: high
+      reset_to: IDLE
+    - name: in
+      width: 1
+      type: data
+      description: "Serial input bit stream, idle=1, start=0, data LSB-first, stop=1"
+  outputs:
+    - name: done
+      width: 1
+      type: registered
+      reset_value: 0
+      description: "Pulses high for exactly 1 cycle when a valid byte (start+8data+stop) is received"
+
+behavior:
+  type: FSM
+  encoding: binary
+  states:
+    - name: IDLE
+      description: "Line idle (in=1). Waiting for start bit."
+    - name: START
+      description: "Start bit detected (in=0). Begin counting data bits."
+    - name: DATA
+      description: "Receiving 8 data bits, LSB first. bit_count tracks how many received."
+    - name: STOP
+      description: "Verifying stop bit (expect in=1)."
+    - name: ERR
+      description: "Stop bit missing (in=0). Wait for line to return high before resyncing."
+
+  transitions:
+    - from: IDLE
+      to: START
+      condition: "in == 0"
+      action: "bit_count <= 0"
+    - from: IDLE
+      to: IDLE
+      condition: "in == 1"
+
+    - from: START
+      to: DATA
+      condition: "always"
+      action: "bit_count <= 0"
+
+    - from: DATA
+      to: DATA
+      condition: "bit_count < 7"
+      action: "bit_count <= bit_count + 1"
+    - from: DATA
+      to: STOP
+      condition: "bit_count == 7"
+
+    - from: STOP
+      to: IDLE
+      condition: "in == 1"
+      output: "done = 1"
+    - from: STOP
+      to: ERR
+      condition: "in == 0"
+      output: "done = 0"
+
+    - from: ERR
+      to: IDLE
+      condition: "in == 1"
+    - from: ERR
+      to: ERR
+      condition: "in == 0"
+
+  outputs_default:
+    done: 0
+
+  internal_signals:
+    - name: bit_count
+      width: 3
+      type: reg
+      reset_value: 0
+      description: "Counts data bits received in DATA state (0..7)"
+
+  exceptions:
+    - "If stop bit is missing (in=0 in STOP), enter ERR and wait until in=1 before accepting next byte"
+    - "reset is synchronous active-high; on reset go to IDLE and set done=0, bit_count=0"
+    - "done must pulse exactly 1 clock cycle per valid byte"
+    - "No latch inference: all outputs and registers must be assigned in every branch of always block"
+    - "Serial protocol: LSB sent first; bit_count just counts, no need to store data bits"
+
+constraints:
+  clock_domains: 1
+  no_latch: true
+  no_enum: true
+  no_display: true
+  no_task: true
+  synthesizable: true
+  sequential_trigger: "posedge clk"
+  reset_style: "synchronous"

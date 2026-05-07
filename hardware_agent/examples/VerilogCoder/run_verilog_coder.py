@@ -7,6 +7,7 @@
 from hardware_agent.examples.VerilogCoder.verilogcoder import VerilogCoder
 from autogen import config_list_from_json
 from hardware_agent.examples.VerilogCoder.verilog_examples_manager import VerilogCaseManager
+from hardware_agent.examples.VerilogCoder.spec_parser import parse_spec
 import argparse
 import os
 
@@ -24,6 +25,8 @@ parser.add_argument('--generate_verilog_dir', help="Verilog directory for genera
                     default="./generate_verilog_dir/")
 parser.add_argument('--verilog_tmp_dir', help="Temp directory for agent", default="./verilog_tool_tmp/")
 parser.add_argument('--verilog_example_dir', help="Verilog question set dir", default="./verilog_eval_v2/")
+parser.add_argument('--spec_file', help="Path to structured YAML spec file (overrides dataset prompt for the first task)",
+                    default="")
 args = parser.parse_args()
 print(args)
 
@@ -81,8 +84,15 @@ for _ in range(case_manager.total_tasks()):
     # else:
     plan_filename = ""
     have_plans = False
+    # Use structured YAML spec if provided (only for first task when spec_file is set)
+    if args.spec_file and os.path.exists(args.spec_file):
+        spec_prompt = parse_spec(args.spec_file)
+        print(f"[Info]: Using structured spec from {args.spec_file}")
+        print("[Info]: Generated prompt:\n", spec_prompt)
+    else:
+        spec_prompt = case_manager.get_cur_prompt()
     success = coding_agent.write_Verilog_module(cur_task_id=cur_task_id,
-                                                spec=case_manager.get_cur_prompt(),
+                                                spec=spec_prompt,
                                                 golden_test_bench=case_manager.get_cur_task_test(),
                                                 plan_filename=plan_filename,
                                                 have_plans = have_plans)
