@@ -38,7 +38,7 @@ else:
 # Load verilog problem sets
 # Add questions
 # user_task_ids = {'vector4', 'zero'}
-user_task_ids = {'zero'}
+user_task_ids = {'fsm_serial'}
 case_manager = VerilogCaseManager(file_path=args.verilog_example_dir, task_ids=user_task_ids)
 
 # llm configurations
