@@ -53,6 +53,13 @@ try:
 except ImportError as e:
     gemini_import_exception = e
 
+try:
+    from autogen.oai.anthropic_client import AnthropicClient
+
+    anthropic_import_exception: Optional[ImportError] = None
+except ImportError as e:
+    anthropic_import_exception = e
+
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     # Add the console handler.
@@ -441,6 +448,10 @@ class OpenAIWrapper:
                 if gemini_import_exception:
                     raise ImportError("Please install `google-generativeai` to use Google OpenAI API.")
                 self._clients.append(GeminiClient(**openai_config))
+            elif api_type is not None and api_type.startswith("anthropic"):
+                if anthropic_import_exception:
+                    raise ImportError("Please install `anthropic` to use Anthropic Claude API.")
+                self._clients.append(AnthropicClient(**openai_config))
             else:
                 client = OpenAI(**openai_config)
                 self._clients.append(OpenAIClient(client))

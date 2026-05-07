@@ -161,6 +161,8 @@ class KnowledgeGraphToolKits:
         if extracted_response is None:
             print("Object is none. Prompt is ", prompt)
         else:
+            if not isinstance(extracted_response, str):
+                extracted_response = extracted_response.content
             extracted_response = extracted_response.replace("\"", "")
         # print(extracted_response)
         return extracted_response

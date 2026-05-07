@@ -33,7 +33,7 @@ from typing import Any, Dict, List, Mapping, Union
 import google.generativeai as genai
 import requests
 from google.ai.generativelanguage import Content, Part
-from google.api_core.exceptions import InternalServerError
+from google.api_core.exceptions import InternalServerError, ResourceExhausted
 from openai.types.chat import ChatCompletion
 from openai.types.chat.chat_completion import ChatCompletionMessage, Choice
 from openai.types.completion_usage import CompletionUsage
@@ -115,7 +115,7 @@ class GeminiClient:
             model = genai.GenerativeModel(model_name)
             genai.configure(api_key=self.api_key)
             chat = model.start_chat(history=gemini_messages[:-1])
-            max_retries = 5
+            max_retries = 10
             for attempt in range(max_retries):
                 ans = None
                 try:
@@ -124,6 +124,13 @@ class GeminiClient:
                     delay = 5 * (2**attempt)
                     warnings.warn(
                         f"InternalServerError `500` occurs when calling Gemini's chat model. Retry in {delay} seconds...",
+                        UserWarning,
+                    )
+                    time.sleep(delay)
+                except ResourceExhausted:
+                    delay = 60
+                    warnings.warn(
+                        f"Rate limit `429` exceeded. Retry in {delay} seconds...",
                         UserWarning,
                     )
                     time.sleep(delay)
