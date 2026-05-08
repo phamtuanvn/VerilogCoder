@@ -205,12 +205,12 @@ class GeminiClient:
                 )
                 break
             except ClientError as e:
-                if e.status_code == 429:
+                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
                     delay = 60
                     warnings.warn(f"Gemini rate limit (429). Retry in {delay}s...", UserWarning)
                     time.sleep(delay)
                 else:
-                    raise RuntimeError(f"Gemini API error {e.status_code}: {e}")
+                    raise RuntimeError(f"Gemini API error: {e}")
             except Exception as e:
                 raise RuntimeError(f"Gemini API exception: {e}")
 
