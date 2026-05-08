@@ -1,0 +1,27 @@
+
+I would like you to implement a module named TopModule with the following
+interface. All input and output ports are one bit unless otherwise
+specified.
+
+ - input  clk
+ - input  reset
+ - input  fcw (32 bits)
+ - output phr (32 bits)
+ - output phr_int (8 bits)
+ - output phr_frac (24 bits)
+
+Implement a Reference Phase Accumulator (RPA) for an All-Digital PLL (ADPLL).
+The module accumulates the Frequency Command Word (FCW) at each positive clock
+edge to produce the reference phase (PHR).
+
+FCW is a 32-bit fixed-point number with 8 integer bits and 24 fractional bits,
+representing the ratio f_RF / f_REF.
+
+The accumulator operation is: phr <= phr + fcw (modulo 2^32, natural wrap-around).
+
+phr_int is the upper 8 bits of phr (phr[31:24]), representing the integer phase.
+phr_frac is the lower 24 bits of phr (phr[23:0]), representing the fractional phase.
+
+reset is synchronous active-high. On reset, phr is cleared to 0.
+
+Assume all sequential logic is triggered on the positive edge of the clock.

@@ -1,0 +1,61 @@
+module:
+  name: TopModule
+  description: "Reference Phase Accumulator (RPA) for ADPLL. Accumulates FCW at each FREF clock edge to produce reference phase PHR. Used for phase error detection against DCO phase counter."
+
+interface:
+  inputs:
+    - name: clk
+      width: 1
+      type: clock
+      edge: posedge
+      description: "Reference clock (FREF)"
+    - name: reset
+      width: 1
+      type: sync_reset
+      active: high
+      reset_to: 0
+      description: "Synchronous active-high reset"
+    - name: fcw
+      width: 32
+      type: data
+      description: "Frequency Command Word, fixed-point 8i+24f: fcw = f_RF / f_REF"
+  outputs:
+    - name: phr
+      width: 32
+      type: registered
+      reset_value: 0
+      description: "Accumulated reference phase, fixed-point 8i+24f"
+    - name: phr_int
+      width: 8
+      type: combinational
+      description: "Integer part of PHR: phr[31:24], used for phase error detection with DCO counter"
+    - name: phr_frac
+      width: 24
+      type: combinational
+      description: "Fractional part of PHR: phr[23:0], used for TDC fractional correction"
+
+behavior:
+  type: datapath
+  operation: "phr <= phr + fcw"
+  overflow: wrap_around
+  numeric_format: fixed_point
+  integer_bits: 8
+  fractional_bits: 24
+  output_assignments:
+    - "phr_int  = phr[31:24]"
+    - "phr_frac = phr[23:0]"
+
+  exceptions:
+    - "Reset is synchronous active-high: on reset, phr <= 0 at next posedge clk"
+    - "Overflow wraps around naturally (modulo 2^32) — no saturation, no flag"
+    - "phr_int and phr_frac are combinational outputs directly sliced from phr register"
+    - "FCW is held constant during normal operation; changing FCW mid-run is valid"
+
+constraints:
+  clock_domains: 1
+  no_latch: true
+  no_enum: true
+  no_display: true
+  synthesizable: true
+  sequential_trigger: "posedge clk"
+  reset_style: synchronous
