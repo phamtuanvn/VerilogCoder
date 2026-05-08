@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 
 from google import genai
 from google.genai import types
-from google.api_core.exceptions import ResourceExhausted
+from google.genai.errors import ClientError
 from openai.types.chat import ChatCompletion
 from openai.types.chat.chat_completion import ChatCompletionMessage, Choice
 from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
@@ -204,10 +204,13 @@ class GeminiClient:
                     config=config,
                 )
                 break
-            except ResourceExhausted:
-                delay = 60
-                warnings.warn(f"Gemini rate limit. Retry in {delay}s...", UserWarning)
-                time.sleep(delay)
+            except ClientError as e:
+                if e.status_code == 429:
+                    delay = 60
+                    warnings.warn(f"Gemini rate limit (429). Retry in {delay}s...", UserWarning)
+                    time.sleep(delay)
+                else:
+                    raise RuntimeError(f"Gemini API error {e.status_code}: {e}")
             except Exception as e:
                 raise RuntimeError(f"Gemini API exception: {e}")
 
