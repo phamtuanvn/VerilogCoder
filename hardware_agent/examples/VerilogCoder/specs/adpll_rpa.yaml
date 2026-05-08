@@ -50,6 +50,7 @@ behavior:
     - "Overflow wraps around naturally (modulo 2^32) — no saturation, no flag"
     - "phr_int and phr_frac are combinational outputs directly sliced from phr register"
     - "FCW is held constant during normal operation; changing FCW mid-run is valid"
+    - "Do NOT re-declare output ports as wire inside the module body; use non-ANSI port declaration style only"
 
 constraints:
   clock_domains: 1
@@ -57,5 +58,6 @@ constraints:
   no_enum: true
   no_display: true
   synthesizable: true
+  no_ansi_port_redeclaration: true
   sequential_trigger: "posedge clk"
   reset_style: synchronous

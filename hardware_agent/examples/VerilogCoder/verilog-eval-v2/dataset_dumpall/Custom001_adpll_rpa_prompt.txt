@@ -24,4 +24,8 @@ phr_frac is the lower 24 bits of phr (phr[23:0]), representing the fractional ph
 
 reset is synchronous active-high. On reset, phr is cleared to 0.
 
+Use non-ANSI port declaration style: list port names in the module header,
+then declare their directions and widths separately in the module body.
+Do not redeclare output ports as wire inside the module body.
+
 Assume all sequential logic is triggered on the positive edge of the clock.
