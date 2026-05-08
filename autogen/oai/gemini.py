@@ -1,17 +1,17 @@
 """OpenAI-compatible client for Google Gemini API (google-genai SDK).
 
-Example:
-    llm_config={
-        "config_list": [{
-            "api_type": "google",
-            "model": "gemini-2.0-flash",
-            "api_key": os.environ.get("GOOGLE_API_KEY")
-        }]
-    }
+Supports two backends — auto-selected based on config:
 
-    agent = autogen.AssistantAgent("my_agent", llm_config=llm_config)
+  AI Studio (api_key):
+    llm_config={"config_list": [{"api_type": "google", "model": "gemini-2.0-flash",
+                                  "api_key": "AIza..."}]}
 
-Install: pip install google-genai
+  Vertex AI (uses $300 GCP free credit, no api_key needed):
+    llm_config={"config_list": [{"api_type": "google", "model": "gemini-2.0-flash",
+                                  "project": "my-gcp-project", "location": "us-central1"}]}
+    Auth: run `gcloud auth application-default login` first.
+
+Install: pip install google-genai google-cloud-aiplatform
 """
 
 from __future__ import annotations
@@ -151,14 +151,26 @@ def oai_messages_to_gemini_contents(messages: List[Dict[str, Any]]):
 
 
 class GeminiClient:
-    """OpenAI-compatible client for Google Gemini API."""
+    """OpenAI-compatible client for Google Gemini API (AI Studio or Vertex AI)."""
 
     def __init__(self, **kwargs):
-        self.api_key = kwargs.get("api_key") or os.getenv("GOOGLE_API_KEY")
-        assert self.api_key, (
-            "Provide api_key in config or set GOOGLE_API_KEY env variable."
-        )
-        self._client = genai.Client(api_key=self.api_key)
+        project = kwargs.get("project") or os.getenv("GOOGLE_CLOUD_PROJECT")
+        location = kwargs.get("location") or os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+        api_key = kwargs.get("api_key") or os.getenv("GOOGLE_API_KEY")
+
+        if project:
+            # Vertex AI — uses Application Default Credentials ($300 GCP credit)
+            self._client = genai.Client(vertexai=True, project=project, location=location)
+            self._vertex = True
+        elif api_key:
+            # AI Studio — uses prepay credits
+            self._client = genai.Client(api_key=api_key)
+            self._vertex = False
+        else:
+            raise AssertionError(
+                "Provide 'project' (Vertex AI) or 'api_key' (AI Studio) in config, "
+                "or set GOOGLE_CLOUD_PROJECT / GOOGLE_API_KEY env variable."
+            )
 
     def message_retrieval(self, response) -> List:
         return [choice.message for choice in response.choices]
