@@ -1,7 +1,6 @@
 `timescale 1ns/1ps
 
 module tb;
-    // DUT ports
     reg         clk;
     reg         reset;
     reg  [31:0] fcw;
@@ -9,7 +8,6 @@ module tb;
     wire [7:0]  phr_int;
     wire [23:0] phr_frac;
 
-    // Instantiate DUT
     TopModule dut (
         .clk      (clk),
         .reset    (reset),
@@ -19,156 +17,103 @@ module tb;
         .phr_frac (phr_frac)
     );
 
-    // Clock: 50MHz (20ns period)
     initial clk = 0;
     always #10 clk = ~clk;
 
-    integer failed = 0;
+    integer mismatches = 0;
+    integer total      = 0;
     integer i;
     reg [31:0] expected_phr;
 
-    task check;
-        input [31:0] exp_phr;
-        input [31:0] cycle;
+    task check_phr;
+        input [31:0] exp;
         begin
-            if (phr !== exp_phr) begin
-                $display("FAIL cycle=%0d: phr=%h, expected=%h", cycle, phr, exp_phr);
-                failed = failed + 1;
+            total = total + 1;
+            if (phr !== exp) begin
+                $display("FAIL: phr=%h expected=%h", phr, exp);
+                mismatches = mismatches + 1;
             end
-            if (phr_int !== exp_phr[31:24]) begin
-                $display("FAIL cycle=%0d: phr_int=%h, expected=%h", cycle, phr_int, exp_phr[31:24]);
-                failed = failed + 1;
+            if (phr_int !== exp[31:24]) begin
+                $display("FAIL: phr_int=%h expected=%h", phr_int, exp[31:24]);
+                mismatches = mismatches + 1;
+                total = total + 1;
             end
-            if (phr_frac !== exp_phr[23:0]) begin
-                $display("FAIL cycle=%0d: phr_frac=%h, expected=%h", cycle, phr_frac, exp_phr[23:0]);
-                failed = failed + 1;
+            if (phr_frac !== exp[23:0]) begin
+                $display("FAIL: phr_frac=%h expected=%h", phr_frac, exp[23:0]);
+                mismatches = mismatches + 1;
+                total = total + 1;
             end
         end
     endtask
 
     initial begin
-        // -----------------------------------------------
-        // Test 1: Reset behavior
-        // -----------------------------------------------
-        reset = 1; fcw = 32'h0080_0000; // FCW = 0.5 in 8i+24f
-        @(posedge clk); #1;
-        check(32'h0, 0);
+        // Test 1: Reset holds phr at 0
+        reset = 1; fcw = 32'h0080_0000;
+        @(posedge clk); #1; check_phr(32'h0);
+        @(posedge clk); #1; check_phr(32'h0);
 
-        @(posedge clk); #1;
-        check(32'h0, 1);
-
-        // -----------------------------------------------
-        // Test 2: Basic accumulation with FCW = 1.0 (32'h0100_0000)
-        // Each cycle phr increments by 1.0
-        // -----------------------------------------------
+        // Test 2: Accumulation with FCW = 1.0
         reset = 0; fcw = 32'h0100_0000;
         expected_phr = 32'h0;
-
         for (i = 0; i < 8; i = i + 1) begin
             @(posedge clk); #1;
             expected_phr = expected_phr + 32'h0100_0000;
-            check(expected_phr, i);
+            check_phr(expected_phr);
         end
 
-        // -----------------------------------------------
-        // Test 3: Fractional accumulation FCW = 0.5 (32'h0080_0000)
-        // -----------------------------------------------
-        reset = 1;
-        @(posedge clk); #1;
+        // Test 3: Fractional accumulation FCW = 0.5
+        reset = 1; @(posedge clk); #1;
         reset = 0; fcw = 32'h0080_0000;
         expected_phr = 32'h0;
-
         for (i = 0; i < 6; i = i + 1) begin
             @(posedge clk); #1;
             expected_phr = expected_phr + 32'h0080_0000;
-            check(expected_phr, i);
+            check_phr(expected_phr);
         end
 
-        // -----------------------------------------------
-        // Test 4: Overflow wrap-around (modulo 2^32)
-        // Set phr close to overflow: FCW = 32'hFFFF_FFFF
-        // -----------------------------------------------
-        reset = 1;
-        @(posedge clk); #1;
+        // Test 4: Overflow wrap-around
+        reset = 1; @(posedge clk); #1;
         reset = 0; fcw = 32'hFFFF_FFFF;
         expected_phr = 32'h0;
-
         for (i = 0; i < 4; i = i + 1) begin
             @(posedge clk); #1;
-            expected_phr = expected_phr + 32'hFFFF_FFFF; // natural 32-bit wrap
-            check(expected_phr, i);
+            expected_phr = expected_phr + 32'hFFFF_FFFF;
+            check_phr(expected_phr);
         end
 
-        // -----------------------------------------------
         // Test 5: Synchronous reset mid-operation
-        // -----------------------------------------------
-        reset = 1;
-        @(posedge clk); #1;
+        reset = 1; @(posedge clk); #1;
         reset = 0; fcw = 32'h0100_0000;
         expected_phr = 32'h0;
-
         repeat (3) begin
             @(posedge clk); #1;
             expected_phr = expected_phr + 32'h0100_0000;
         end
-        check(expected_phr, 99);
+        check_phr(expected_phr);
+        reset = 1; @(posedge clk); #1; check_phr(32'h0);
+        reset = 0; @(posedge clk); #1; check_phr(32'h0100_0000);
 
-        // Apply reset mid-run
-        reset = 1;
-        @(posedge clk); #1;
-        check(32'h0, 100); // must be 0 after sync reset
-
-        reset = 0;
-        @(posedge clk); #1;
-        check(32'h0100_0000, 101); // resumes accumulation
-
-        // -----------------------------------------------
         // Test 6: FCW change mid-run
-        // -----------------------------------------------
-        reset = 1;
-        @(posedge clk); #1;
+        reset = 1; @(posedge clk); #1;
         reset = 0; fcw = 32'h0100_0000;
         expected_phr = 32'h0;
+        repeat (2) begin @(posedge clk); #1; expected_phr = expected_phr + 32'h0100_0000; end
+        fcw = 32'h0200_0000;
+        repeat (2) begin @(posedge clk); #1; expected_phr = expected_phr + 32'h0200_0000; end
+        check_phr(expected_phr);
 
-        repeat (2) begin
-            @(posedge clk); #1;
-            expected_phr = expected_phr + 32'h0100_0000;
-        end
-
-        fcw = 32'h0200_0000; // change FCW
-        repeat (2) begin
-            @(posedge clk); #1;
-            expected_phr = expected_phr + 32'h0200_0000;
-        end
-        check(expected_phr, 110);
-
-        // -----------------------------------------------
-        // Test 7: FCW = 0 (no accumulation)
-        // -----------------------------------------------
-        reset = 1;
-        @(posedge clk); #1;
+        // Test 7: FCW = 0
+        reset = 1; @(posedge clk); #1;
         reset = 0; fcw = 32'h0;
-        @(posedge clk); #1;
-        check(32'h0, 120);
-        @(posedge clk); #1;
-        check(32'h0, 121);
+        @(posedge clk); #1; check_phr(32'h0);
+        @(posedge clk); #1; check_phr(32'h0);
 
-        // -----------------------------------------------
-        // Result
-        // -----------------------------------------------
-        if (failed == 0)
-            $display("Function Check Success");
-        else
-            $display("FAILED: %0d errors", failed);
-
+        $display("Mismatches: %0d in %0d samples", mismatches, total);
         $finish;
     end
 
-    // Timeout watchdog
     initial begin
-        #100000;
-        $display("TIMEOUT");
-        $finish;
+        #100000; $display("Mismatches: 999 in 1 samples"); $finish;
     end
 
 endmodule
